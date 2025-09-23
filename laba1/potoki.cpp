@@ -15,7 +15,7 @@ unsigned __stdcall workerThread(void* pData)
 {
     ThreadData* data = (ThreadData*)pData;
 
-    cout << " Ýëåìåíòû, êðàòíûå 3: ";
+    cout << " ÃÃ«Ã¥Ã¬Ã¥Ã­Ã²Ã», ÃªÃ°Ã Ã²Ã­Ã»Ã¥ 3: ";
     bool found = false;
 
     for (int num : data->array)
@@ -31,7 +31,7 @@ unsigned __stdcall workerThread(void* pData)
 
     if (!found)
     {
-        cout << "íÿìà ýëåìåíòîâ :(";
+        cout << "Ã­Ã¿Ã¬Ã  Ã½Ã«Ã¥Ã¬Ã¥Ã­Ã²Ã®Ã¢ :(";
     }
     cout << endl;
 
@@ -42,13 +42,13 @@ int main()
 {
     setlocale(LC_ALL, "RUS");
     int size;
-    cout << "Ââåäèòå ðàçìåð ìàññèâà: ";
+    cout << "Ã‚Ã¢Ã¥Ã¤Ã¨Ã²Ã¥ Ã°Ã Ã§Ã¬Ã¥Ã° Ã¬Ã Ã±Ã±Ã¨Ã¢Ã : ";
     cin >> size;
 
     
     vector<int> arr(size);
     char choice;
-    cout << "Çàïîëíèòü ìàññèâ ñëó÷àéíî? (1-åñ): ";
+    cout << "Ã‡Ã Ã¯Ã®Ã«Ã­Ã¨Ã²Ã¼ Ã¬Ã Ã±Ã±Ã¨Ã¢ Ã±Ã«Ã³Ã·Ã Ã©Ã­Ã®? (1-Ã¥Ã±): ";
     cin >> choice;
 
     if (choice == '1')
@@ -57,7 +57,7 @@ int main()
         {
             arr[i] = rand() % 101 - 50;
         }
-        cout << " ìàññèâ: ";
+        cout << " Ã¬Ã Ã±Ã±Ã¨Ã¢: ";
         for (int num : arr) 
         {
             cout << num << " ";
@@ -65,7 +65,7 @@ int main()
         cout << endl;
     }
     else {
-        cout << "Ââåäèòå " << size << " ýëåìåíòîâ ìàññèâà:" << endl;
+        cout << "Ã‚Ã¢Ã¥Ã¤Ã¨Ã²Ã¥ " << size << " Ã½Ã«Ã¥Ã¬Ã¥Ã­Ã²Ã®Ã¢ Ã¬Ã Ã±Ã±Ã¨Ã¢Ã :" << endl;
         for (int i = 0; i < size; ++i) {
             cin >> arr[i];
         }
@@ -73,7 +73,7 @@ int main()
 
 
     int suspendTimeMs;
-    cout << "âðåìÿ ïðèîñòàíîâêè ïîòîêà worker : ";
+    cout << "Ã¢Ã°Ã¥Ã¬Ã¿ Ã¯Ã°Ã¨Ã®Ã±Ã²Ã Ã­Ã®Ã¢ÃªÃ¨ Ã¯Ã®Ã²Ã®ÃªÃ  worker : ";
     cin >> suspendTimeMs;
 
     ThreadData threadData;
@@ -84,54 +84,55 @@ int main()
     unsigned threadID;
 
     
-    hThread = (HANDLE)_beginthreadex(NULL, 0, workerThread, &threadData, 0, &threadID);
+    hThread = (HANDLE)_beginthreadex(NULL, 0, workerThread, &threadData, CREATE_SUSPENDED, &threadID);
 
     if (hThread == NULL) 
     {
-        cerr << "Îøèáêà ñîçäàíèÿ ïîòîêà!!!!" << endl;
+        cerr << "ÃŽÃ¸Ã¨Ã¡ÃªÃ  Ã±Ã®Ã§Ã¤Ã Ã­Ã¨Ã¿ Ã¯Ã®Ã²Ã®ÃªÃ !!!!" << endl;
         return 1;
     }
 
-    cout << " Èäåíòèôèêàòîð ïîòîêà: " << threadID << endl;
-    cout << " Äåñêðèïòîð ïîòîêà: " << hThread << endl;
+    cout << " ÃˆÃ¤Ã¥Ã­Ã²Ã¨Ã´Ã¨ÃªÃ Ã²Ã®Ã° Ã¯Ã®Ã²Ã®ÃªÃ : " << threadID << endl;
+    cout << " Ã„Ã¥Ã±ÃªÃ°Ã¨Ã¯Ã²Ã®Ã° Ã¯Ã®Ã²Ã®ÃªÃ : " << hThread << endl;
 
    
-    cout << "Ïðèîñòàíîâêà ïîòîêà worker..." << endl;
+    cout << "ÃÃ°Ã¨Ã®Ã±Ã²Ã Ã­Ã®Ã¢ÃªÃ  Ã¯Ã®Ã²Ã®ÃªÃ  worker..." << endl;
     DWORD suspendResult = SuspendThread(hThread);
     if (suspendResult == (DWORD)-1) 
     {
-        cerr << "Îøèáêà ïðèîñòàíîâêè ïîòîêà!" << endl;
+        cerr << "ÃŽÃ¸Ã¨Ã¡ÃªÃ  Ã¯Ã°Ã¨Ã®Ã±Ã²Ã Ã­Ã®Ã¢ÃªÃ¨ Ã¯Ã®Ã²Ã®ÃªÃ !" << endl;
         CloseHandle(hThread);
         return 1;
     }
 
-    cout << suspendTimeMs << " ìñ ïåðåä çàïóñêîì..." << endl;
+    cout << suspendTimeMs << " Ã¬Ã± Ã¯Ã¥Ã°Ã¥Ã¤ Ã§Ã Ã¯Ã³Ã±ÃªÃ®Ã¬..." << endl;
     Sleep(suspendTimeMs);
 
 
-    cout << "Çàïóñê ïîòîêà worker...ïàì" << endl;
+    cout << "Ã‡Ã Ã¯Ã³Ã±Ãª Ã¯Ã®Ã²Ã®ÃªÃ  worker...Ã¯Ã Ã¬" << endl;
     DWORD resumeResult = ResumeThread(hThread);
     if (resumeResult == (DWORD)-1)
     {
-        cerr << "Îøèáêà çàïóñêà ïîòîêà!!!!!!!!!!!" << endl;
+        cerr << "ÃŽÃ¸Ã¨Ã¡ÃªÃ  Ã§Ã Ã¯Ã³Ã±ÃªÃ  Ã¯Ã®Ã²Ã®ÃªÃ !!!!!!!!!!!" << endl;
         CloseHandle(hThread);
         return 1;
     }
 
-    cout << "Îæèäàíèå çàâåðøåíèÿ ïîòîêà worker..." << endl;
+    cout << "ÃŽÃ¦Ã¨Ã¤Ã Ã­Ã¨Ã¥ Ã§Ã Ã¢Ã¥Ã°Ã¸Ã¥Ã­Ã¨Ã¿ Ã¯Ã®Ã²Ã®ÃªÃ  worker..." << endl;
     DWORD waitResult = WaitForSingleObject(hThread, INFINITE);
 
     if (waitResult == WAIT_OBJECT_0) 
     {
-        cout << "âñå ïîëó÷èëîñü óðà óðà !!!!!" << endl;
+        cout << "Ã¢Ã±Ã¥ Ã¯Ã®Ã«Ã³Ã·Ã¨Ã«Ã®Ã±Ã¼ Ã³Ã°Ã  Ã³Ã°Ã  !!!!!" << endl;
     }
     else 
     {
-        cerr << "ÅÐÐÎÐ" << endl;
+        cerr << "Ã…ÃÃÃŽÃ" << endl;
     }
 
     CloseHandle(hThread);
  
 
     return 0;
+
 }
