@@ -5,8 +5,8 @@
 
 using namespace std;
 
-// Структура для передачи данных в поток marker
-struct MarkerData {
+struct MarkerData
+{
     int markerId;
     int arraySize;
     int* array;
@@ -17,54 +17,53 @@ struct MarkerData {
     HANDLE threadFinishedEvent;
 };
 
-// Функция потока marker
-unsigned __stdcall markerThread(void* param) {
+unsigned __stdcall markerThread(void* param)
+{
     MarkerData* data = (MarkerData*)param;
 
-    // Ожидаем сигнала начала работы
     WaitForSingleObject(data->startEvent, INFINITE);
 
-    srand(data->markerId); // Инициализируем генератор случайных чисел
+    srand(data->markerId); 
 
     int markedCount = 0;
     int lastIndex = -1;
 
-    while (true) {
+    while (true) 
+    {
         int index = rand() % data->arraySize;
-
-        // Входим в критическую секцию
+\
         EnterCriticalSection(data->cs);
 
         if (data->array[index] == 0) {
-            // Ячейка свободна - помечаем её
+            // ГџГ·ГҐГ©ГЄГ  Г±ГўГ®ГЎГ®Г¤Г­Г  - ГЇГ®Г¬ГҐГ·Г ГҐГ¬ ГҐВё
             Sleep(5);
             data->array[index] = data->markerId;
             Sleep(5);
             markedCount++;
             lastIndex = index;
 
-            // Выходим из критической секции
+            // Г‚Г»ГµГ®Г¤ГЁГ¬ ГЁГ§ ГЄГ°ГЁГІГЁГ·ГҐГ±ГЄГ®Г© Г±ГҐГЄГ¶ГЁГЁ
             LeaveCriticalSection(data->cs);
         }
         else {
-            // Ячейка занята - выходим из цикла
+            // ГџГ·ГҐГ©ГЄГ  Г§Г Г­ГїГІГ  - ГўГ»ГµГ®Г¤ГЁГ¬ ГЁГ§ Г¶ГЁГЄГ«Г 
             LeaveCriticalSection(data->cs);
             break;
         }
     }
 
-    // Сообщаем о невозможности продолжать работу
-    cout << "Поток " << data->markerId << " остановился. Помечено ячеек: "
-        << markedCount << ". Последняя ячейка: " << lastIndex << endl;
+    // Г‘Г®Г®ГЎГ№Г ГҐГ¬ Г® Г­ГҐГўГ®Г§Г¬Г®Г¦Г­Г®Г±ГІГЁ ГЇГ°Г®Г¤Г®Г«Г¦Г ГІГј Г°Г ГЎГ®ГІГі
+    cout << "ГЏГ®ГІГ®ГЄ " << data->markerId << " Г®Г±ГІГ Г­Г®ГўГЁГ«Г±Гї. ГЏГ®Г¬ГҐГ·ГҐГ­Г® ГїГ·ГҐГҐГЄ: "
+        << markedCount << ". ГЏГ®Г±Г«ГҐГ¤Г­ГїГї ГїГ·ГҐГ©ГЄГ : " << lastIndex << endl;
 
     SetEvent(data->threadFinishedEvent);
 
-    // Ждем сигнала от main
+    // Г†Г¤ГҐГ¬ Г±ГЁГЈГ­Г Г«Г  Г®ГІ main
     HANDLE events[2] = { data->continueEvent, data->stopEvent };
     DWORD result = WaitForMultipleObjects(2, events, FALSE, INFINITE);
 
     if (result == WAIT_OBJECT_0 + 1) {
-        // Получили сигнал на завершение - очищаем свои отметки
+        // ГЏГ®Г«ГіГ·ГЁГ«ГЁ Г±ГЁГЈГ­Г Г« Г­Г  Г§Г ГўГҐГ°ГёГҐГ­ГЁГҐ - Г®Г·ГЁГ№Г ГҐГ¬ Г±ГўГ®ГЁ Г®ГІГ¬ГҐГІГЄГЁ
         EnterCriticalSection(data->cs);
 
         for (int i = 0; i < data->arraySize; i++) {
@@ -76,14 +75,14 @@ unsigned __stdcall markerThread(void* param) {
         LeaveCriticalSection(data->cs);
     }
 
-    // Завершаем поток
+    // Г‡Г ГўГҐГ°ГёГ ГҐГ¬ ГЇГ®ГІГ®ГЄ
     _endthreadex(0);
     return 0;
 }
 
-// Функция для вывода массива
+// Г”ГіГ­ГЄГ¶ГЁГї Г¤Г«Гї ГўГ»ГўГ®Г¤Г  Г¬Г Г±Г±ГЁГўГ 
 void printArray(int* array, int size) {
-    cout << "Текущее состояние массива: ";
+    cout << "Г’ГҐГЄГіГ№ГҐГҐ Г±Г®Г±ГІГ®ГїГ­ГЁГҐ Г¬Г Г±Г±ГЁГўГ : ";
     for (int i = 0; i < size; i++) {
         cout << array[i] << " ";
     }
@@ -93,9 +92,9 @@ void printArray(int* array, int size) {
 int main() {
     setlocale(LC_ALL, "Russian");
 
-    // 1. Создаем и инициализируем массив
+    // 1. Г‘Г®Г§Г¤Г ГҐГ¬ ГЁ ГЁГ­ГЁГ¶ГЁГ Г«ГЁГ§ГЁГ°ГіГҐГ¬ Г¬Г Г±Г±ГЁГў
     int arraySize;
-    cout << "Введите размер массива: ";
+    cout << "Г‚ГўГҐГ¤ГЁГІГҐ Г°Г Г§Г¬ГҐГ° Г¬Г Г±Г±ГЁГўГ : ";
     cin >> arraySize;
 
     int* array = new int[arraySize];
@@ -103,12 +102,12 @@ int main() {
         array[i] = 0;
     }
 
-    // 2. Запрашиваем количество потоков
+    // 2. Г‡Г ГЇГ°Г ГёГЁГўГ ГҐГ¬ ГЄГ®Г«ГЁГ·ГҐГ±ГІГўГ® ГЇГ®ГІГ®ГЄГ®Гў
     int threadCount;
-    cout << "Введите количество потоков marker: ";
+    cout << "Г‚ГўГҐГ¤ГЁГІГҐ ГЄГ®Г«ГЁГ·ГҐГ±ГІГўГ® ГЇГ®ГІГ®ГЄГ®Гў marker: ";
     cin >> threadCount;
 
-    // 3. Создаем объекты синхронизации
+    // 3. Г‘Г®Г§Г¤Г ГҐГ¬ Г®ГЎГєГҐГЄГІГ» Г±ГЁГ­ГµГ°Г®Г­ГЁГ§Г Г¶ГЁГЁ
     CRITICAL_SECTION cs;
     InitializeCriticalSection(&cs);
 
@@ -126,10 +125,10 @@ int main() {
         stopEvents[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
     }
 
-    // 4. Запускаем потоки marker
+    // 4. Г‡Г ГЇГіГ±ГЄГ ГҐГ¬ ГЇГ®ГІГ®ГЄГЁ marker
     for (int i = 0; i < threadCount; i++) {
         threadData[i] = new MarkerData{
-            i + 1,           // markerId (начинаем с 1)
+            i + 1,           // markerId (Г­Г Г·ГЁГ­Г ГҐГ¬ Г± 1)
             arraySize,       // arraySize
             array,           // array
             &cs,             // cs
@@ -142,46 +141,46 @@ int main() {
         threads[i] = (HANDLE)_beginthreadex(NULL, 0, markerThread, threadData[i], 0, NULL);
     }
 
-    // 5. Даем общий сигнал на начало работы
+    // 5. Г„Г ГҐГ¬ Г®ГЎГ№ГЁГ© Г±ГЁГЈГ­Г Г« Г­Г  Г­Г Г·Г Г«Г® Г°Г ГЎГ®ГІГ»
     SetEvent(startEvent);
 
-    // 6. Главный управляющий цикл
+    // 6. ГѓГ«Г ГўГ­Г»Г© ГіГЇГ°Г ГўГ«ГїГѕГ№ГЁГ© Г¶ГЁГЄГ«
     int activeThreads = threadCount;
 
     while (activeThreads > 0) {
-        // 6a. Ждем, пока все активные потоки сообщат о невозможности продолжать работу
+        // 6a. Г†Г¤ГҐГ¬, ГЇГ®ГЄГ  ГўГ±ГҐ Г ГЄГІГЁГўГ­Г»ГҐ ГЇГ®ГІГ®ГЄГЁ Г±Г®Г®ГЎГ№Г ГІ Г® Г­ГҐГўГ®Г§Г¬Г®Г¦Г­Г®Г±ГІГЁ ГЇГ°Г®Г¤Г®Г«Г¦Г ГІГј Г°Г ГЎГ®ГІГі
         WaitForMultipleObjects(activeThreads, threadFinishedEvents.data(), TRUE, INFINITE);
 
-        // 6b. Выводим текущее состояние массива
+        // 6b. Г‚Г»ГўГ®Г¤ГЁГ¬ ГІГҐГЄГіГ№ГҐГҐ Г±Г®Г±ГІГ®ГїГ­ГЁГҐ Г¬Г Г±Г±ГЁГўГ 
         printArray(array, arraySize);
 
-        // 6c. Запрашиваем номер потока для завершения
+        // 6c. Г‡Г ГЇГ°Г ГёГЁГўГ ГҐГ¬ Г­Г®Г¬ГҐГ° ГЇГ®ГІГ®ГЄГ  Г¤Г«Гї Г§Г ГўГҐГ°ГёГҐГ­ГЁГї
         int threadToStop;
-        cout << "Введите номер потока для завершения (1-" << threadCount << "): ";
+        cout << "Г‚ГўГҐГ¤ГЁГІГҐ Г­Г®Г¬ГҐГ° ГЇГ®ГІГ®ГЄГ  Г¤Г«Гї Г§Г ГўГҐГ°ГёГҐГ­ГЁГї (1-" << threadCount << "): ";
         cin >> threadToStop;
 
         if (threadToStop < 1 || threadToStop > threadCount) {
-            cout << "Неверный номер потока!" << endl;
+            cout << "ГЌГҐГўГҐГ°Г­Г»Г© Г­Г®Г¬ГҐГ° ГЇГ®ГІГ®ГЄГ !" << endl;
             continue;
         }
 
         int threadIndex = threadToStop - 1;
 
-        // 6d. Подаем сигнал на завершение выбранному потоку
+        // 6d. ГЏГ®Г¤Г ГҐГ¬ Г±ГЁГЈГ­Г Г« Г­Г  Г§Г ГўГҐГ°ГёГҐГ­ГЁГҐ ГўГ»ГЎГ°Г Г­Г­Г®Г¬Гі ГЇГ®ГІГ®ГЄГі
         SetEvent(stopEvents[threadIndex]);
 
-        // 6e. Ждем завершения потока
+        // 6e. Г†Г¤ГҐГ¬ Г§Г ГўГҐГ°ГёГҐГ­ГЁГї ГЇГ®ГІГ®ГЄГ 
         WaitForSingleObject(threads[threadIndex], INFINITE);
 
-        // 6f. Выводим состояние массива после очистки
-        cout << "После завершения потока " << threadToStop << ":" << endl;
+        // 6f. Г‚Г»ГўГ®Г¤ГЁГ¬ Г±Г®Г±ГІГ®ГїГ­ГЁГҐ Г¬Г Г±Г±ГЁГўГ  ГЇГ®Г±Г«ГҐ Г®Г·ГЁГ±ГІГЄГЁ
+        cout << "ГЏГ®Г±Г«ГҐ Г§Г ГўГҐГ°ГёГҐГ­ГЁГї ГЇГ®ГІГ®ГЄГ  " << threadToStop << ":" << endl;
         printArray(array, arraySize);
 
-        // Убираем завершенный поток из активных
+        // Г“ГЎГЁГ°Г ГҐГ¬ Г§Г ГўГҐГ°ГёГҐГ­Г­Г»Г© ГЇГ®ГІГ®ГЄ ГЁГ§ Г ГЄГІГЁГўГ­Г»Гµ
         threadFinishedEvents.erase(threadFinishedEvents.begin() + threadIndex);
         activeThreads--;
 
-        // 6g. Подаем сигнал на продолжение работы оставшимся потокам
+        // 6g. ГЏГ®Г¤Г ГҐГ¬ Г±ГЁГЈГ­Г Г« Г­Г  ГЇГ°Г®Г¤Г®Г«Г¦ГҐГ­ГЁГҐ Г°Г ГЎГ®ГІГ» Г®Г±ГІГ ГўГёГЁГ¬Г±Гї ГЇГ®ГІГ®ГЄГ Г¬
         for (int i = 0; i < threadCount; i++) {
             if (i != threadIndex) {
                 ResetEvent(threadFinishedEvents[i]);
@@ -190,7 +189,7 @@ int main() {
         }
     }
 
-    // Освобождаем ресурсы
+    // ГЋГ±ГўГ®ГЎГ®Г¦Г¤Г ГҐГ¬ Г°ГҐГ±ГіГ°Г±Г»
     DeleteCriticalSection(&cs);
     CloseHandle(startEvent);
 
@@ -204,7 +203,8 @@ int main() {
 
     delete[] array;
 
-    cout << "Все потоки завершены. Программа завершена." << endl;
+    cout << "Г‚Г±ГҐ ГЇГ®ГІГ®ГЄГЁ Г§Г ГўГҐГ°ГёГҐГ­Г». ГЏГ°Г®ГЈГ°Г Г¬Г¬Г  Г§Г ГўГҐГ°ГёГҐГ­Г ." << endl;
 
     return 0;
+
 }
