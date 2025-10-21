@@ -34,36 +34,32 @@ unsigned __stdcall markerThread(void* param)
 \
         EnterCriticalSection(data->cs);
 
-        if (data->array[index] == 0) {
-            // ß÷åéêà ñâîáîäíà - ïîìå÷àåì å¸
+        if (data->array[index] == 0)
+        {
             Sleep(5);
             data->array[index] = data->markerId;
             Sleep(5);
             markedCount++;
             lastIndex = index;
 
-            // Âûõîäèì èç êðèòè÷åñêîé ñåêöèè
             LeaveCriticalSection(data->cs);
         }
         else {
-            // ß÷åéêà çàíÿòà - âûõîäèì èç öèêëà
             LeaveCriticalSection(data->cs);
             break;
         }
     }
 
-    // Ñîîáùàåì î íåâîçìîæíîñòè ïðîäîëæàòü ðàáîòó
     cout << "Ïîòîê " << data->markerId << " îñòàíîâèëñÿ. Ïîìå÷åíî ÿ÷ååê: "
         << markedCount << ". Ïîñëåäíÿÿ ÿ÷åéêà: " << lastIndex << endl;
 
     SetEvent(data->threadFinishedEvent);
 
-    // Æäåì ñèãíàëà îò main
     HANDLE events[2] = { data->continueEvent, data->stopEvent };
     DWORD result = WaitForMultipleObjects(2, events, FALSE, INFINITE);
 
-    if (result == WAIT_OBJECT_0 + 1) {
-        // Ïîëó÷èëè ñèãíàë íà çàâåðøåíèå - î÷èùàåì ñâîè îòìåòêè
+    if (result == WAIT_OBJECT_0 + 1) 
+    {
         EnterCriticalSection(data->cs);
 
         for (int i = 0; i < data->arraySize; i++) {
@@ -74,13 +70,10 @@ unsigned __stdcall markerThread(void* param)
 
         LeaveCriticalSection(data->cs);
     }
-
-    // Çàâåðøàåì ïîòîê
     _endthreadex(0);
     return 0;
 }
 
-// Ôóíêöèÿ äëÿ âûâîäà ìàññèâà
 void printArray(int* array, int size) {
     cout << "Òåêóùåå ñîñòîÿíèå ìàññèâà: ";
     for (int i = 0; i < size; i++) {
@@ -89,10 +82,10 @@ void printArray(int* array, int size) {
     cout << endl;
 }
 
-int main() {
-    setlocale(LC_ALL, "Russian");
+int main() 
+{
+    setlocale(LC_ALL, "Rus");
 
-    // 1. Ñîçäàåì è èíèöèàëèçèðóåì ìàññèâ
     int arraySize;
     cout << "Ââåäèòå ðàçìåð ìàññèâà: ";
     cin >> arraySize;
@@ -126,7 +119,8 @@ int main() {
     }
 
     // 4. Çàïóñêàåì ïîòîêè marker
-    for (int i = 0; i < threadCount; i++) {
+    for (int i = 0; i < threadCount; i++)
+        {
         threadData[i] = new MarkerData{
             i + 1,           // markerId (íà÷èíàåì ñ 1)
             arraySize,       // arraySize
@@ -189,11 +183,11 @@ int main() {
         }
     }
 
-    // Îñâîáîæäàåì ðåñóðñû
     DeleteCriticalSection(&cs);
     CloseHandle(startEvent);
 
-    for (int i = 0; i < threadCount; i++) {
+    for (int i = 0; i < threadCount; i++) 
+    {
         CloseHandle(threads[i]);
         CloseHandle(continueEvents[i]);
         CloseHandle(stopEvents[i]);
@@ -208,3 +202,4 @@ int main() {
     return 0;
 
 }
+
