@@ -8,80 +8,85 @@ using namespace std;
 
 struct MarkerThreadData
 {
-    int threadId;           // номер потока
-    int arraySize;         
-    int* sharedArray;       // указатель на общий массив
+    int threadId;           
+    int arraySize;
+    int* sharedArray;       
     CRITICAL_SECTION* cs;   // указатель крит секции
+    CRITICAL_SECTION* outputCs; // для синхронизации вывода
     HANDLE startEvent;      // событие для одновременного старта
     HANDLE suspendEvent;    // приостановка
     HANDLE terminateEvent;  // завершение
-    HANDLE continueEvent;   // прода
+    HANDLE continueEvent;   // продолжение
 };
 
-//поток-marker
-DWORD WINAPI MarkerThread(LPVOID param) 
+// поток-marker
+DWORD WINAPI MarkerThread(LPVOID param)
 {
     MarkerThreadData* data = (MarkerThreadData*)param;
-    // шаг1: Ожидание сигнала старта от main
-    WaitForSingleObject(data->startEvent, INFINITE);
 
-    // шаг2: Инициализация генератора случайных чисел
+    WaitForSingleObject(data->startEvent, INFINITE);
     srand(data->threadId);
 
     int markedCount = 0;
     bool running = true;
-    int lastIndex = -1; 
+    int lastIndex = -1;
 
     while (running)
     {
-        // генерация случайного индекса
         int index = rand() % data->arraySize;
-
-        //захват крит секции
         EnterCriticalSection(data->cs);
 
-        //проверка ячейки
         if (data->sharedArray[index] == 0)
         {
-            // ячейка свободна - ставим метку
-            Sleep(5); 
+            // Успешная отметка
+            Sleep(5);
             data->sharedArray[index] = data->threadId;
+            Sleep(5);
             markedCount++;
-            Sleep(5); 
             LeaveCriticalSection(data->cs);
         }
         else {
-            // ячейка занята - запоминаем индекс и выход
+            // Неудачная попытка - выходим из цикла
             lastIndex = index;
             LeaveCriticalSection(data->cs);
 
-            // шаг4: Обработка приостановки
+            // Сообщаем о приостановке
+            EnterCriticalSection(data->outputCs);
             cout << "Поток " << data->threadId << " отметил " << markedCount
                 << " элементов. Остановлен на индексе " << lastIndex << endl;
+            LeaveCriticalSection(data->outputCs);
 
             SetEvent(data->suspendEvent);
 
-            // Шаг 4b: Ожидание команды от main
+            // Ожидание команды от main
             HANDLE waitHandles[2] = { data->terminateEvent, data->continueEvent };
             DWORD waitResult = WaitForMultipleObjects(2, waitHandles, FALSE, INFINITE);
 
             if (waitResult == WAIT_OBJECT_0)
             {
-                running = false;
+                running = false; // Завершение
             }
             else if (waitResult == WAIT_OBJECT_0 + 1)
             {
-                markedCount = 0; // Сброс счетчика для нового цикла
+                // Продолжение работы
+                markedCount = 0;
+                lastIndex = -1;
                 continue;
             }
+            break;
+        }
+
+        // Проверка сигнала завершения
+        if (WaitForSingleObject(data->terminateEvent, 0) == WAIT_OBJECT_0)
+        {
+            running = false;
         }
     }
 
-    // Шаг 5: Завершение работы (если running = false)
-    if (!running) 
+    // Завершение работы - очистка массива
+    if (!running)
     {
         EnterCriticalSection(data->cs);
-
         int cleanedCount = 0;
         for (int i = 0; i < data->arraySize; ++i)
         {
@@ -91,46 +96,49 @@ DWORD WINAPI MarkerThread(LPVOID param)
                 cleanedCount++;
             }
         }
-
         LeaveCriticalSection(data->cs);
 
+        EnterCriticalSection(data->outputCs);
         cout << "Поток " << data->threadId << " завершен. Очищено "
             << cleanedCount << " элементов." << endl;
+        LeaveCriticalSection(data->outputCs);
     }
 
     return 0;
 }
 
-int main() 
+int main()
 {
     setlocale(LC_ALL, "RUS");
+
+    // Шаг 1: Создание и инициализация массива
     int arraySize;
     cout << "Введите размер массива: ";
     cin >> arraySize;
 
-    int* sharedArray = new int[arraySize](); 
+    int* sharedArray = new int[arraySize]();
 
+    // Шаг 2: Запрос количества потоков
     int markerCount;
     cout << "Введите количество потоков marker: ";
     cin >> markerCount;
 
+    // Шаг 3: Создание объектов синхронизации
     CRITICAL_SECTION cs;
+    CRITICAL_SECTION outputCs;
     InitializeCriticalSection(&cs);
+    InitializeCriticalSection(&outputCs);
 
-    // b. Массив событий для приостановки
     HANDLE* suspendEvents = new HANDLE[markerCount];
-    // c. Массив событий для завершения
     HANDLE* terminateEvents = new HANDLE[markerCount];
-    // d. Массив событий для продолжения
     HANDLE* continueEvents = new HANDLE[markerCount];
-    // e. Событие для одновременного старта
     HANDLE startEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
-    for (int i = 0; i < markerCount; ++i) 
+    for (int i = 0; i < markerCount; ++i)
     {
-        suspendEvents[i] = CreateEvent(NULL, FALSE, FALSE, NULL); 
-        terminateEvents[i] = CreateEvent(NULL, FALSE, FALSE, NULL); 
-        continueEvents[i] = CreateEvent(NULL, FALSE, FALSE, NULL); 
+        suspendEvents[i] = CreateEvent(NULL, FALSE, FALSE, NULL);
+        terminateEvents[i] = CreateEvent(NULL, FALSE, FALSE, NULL);
+        continueEvents[i] = CreateEvent(NULL, FALSE, FALSE, NULL);
     }
 
     // Шаг 4: Запуск потоков marker
@@ -140,34 +148,36 @@ int main()
     for (int i = 0; i < markerCount; ++i)
     {
         threadData[i] = {
-            i + 1,             
-            arraySize,          
-            sharedArray,       
-            &cs,             
-            startEvent,        
-            suspendEvents[i],  
+            i + 1,
+            arraySize,
+            sharedArray,
+            &cs,
+            &outputCs,
+            startEvent,
+            suspendEvents[i],
             terminateEvents[i],
-            continueEvents[i]  
+            continueEvents[i]
         };
 
         markerThreads[i] = CreateThread(
-            NULL,             
-            0,                 
-            MarkerThread,       
-            &threadData[i],     
-            0,                
-            NULL               
+            NULL,
+            0,
+            MarkerThread,
+            &threadData[i],
+            0,
+            NULL
         );
 
         if (markerThreads[i] == NULL)
         {
-            cerr << "ЕРРОР" << (i + 1) << endl;
+            cerr << "Ошибка создания потока " << (i + 1) << endl;
             return GetLastError();
         }
     }
 
     cout << "Создано " << markerCount << " потоков marker" << endl;
 
+    // Шаг 5: Сигнал на начало работы
     SetEvent(startEvent);
     cout << "Все потоки запущены одновременно" << endl;
 
@@ -175,60 +185,97 @@ int main()
     vector<bool> activeMarkers(markerCount, true);
     int activeCount = markerCount;
 
-    while (activeCount > 0) 
+    while (activeCount > 0)
     {
-        // Шаг 6a: Ожидание приостановки всех активных потоков
-        cout << "\n Ожидание приостановки всех активных потоков..." << endl;
-        WaitForMultipleObjects(markerCount, suspendEvents, TRUE, INFINITE);
+        // Шаг 6a: Ожидание приостановки одного потока
+        cout << "\nОжидание приостановки одного из потоков..." << endl;
 
-        // Шаг 6b: Вывод тек состояния массива
+        // Создаем массив активных событий приостановки
+        vector<HANDLE> activeSuspendEvents;
+        vector<int> activeIndices;
+
+        for (int i = 0; i < markerCount; ++i) {
+            if (activeMarkers[i]) {
+                activeSuspendEvents.push_back(suspendEvents[i]);
+                activeIndices.push_back(i);
+            }
+        }
+
+        if (activeSuspendEvents.empty()) break;
+
+        // Ждем любое из событий приостановки
+        DWORD waitResult = WaitForMultipleObjects(
+            activeSuspendEvents.size(),
+            &activeSuspendEvents[0],
+            FALSE,
+            INFINITE
+        );
+
+        if (waitResult == WAIT_FAILED) {
+            cout << "Ошибка при ожидании событий" << endl;
+            break;
+        }
+
+        int eventIndex = waitResult - WAIT_OBJECT_0;
+        if (eventIndex < 0 || eventIndex >= activeIndices.size()) {
+            continue;
+        }
+
+        int suspendedThreadIndex = activeIndices[eventIndex];
+
+        // Небольшая задержка для завершения вывода потоков
+        Sleep(50);
+
+        // Шаг 6b: Вывод текущего состояния массива
         EnterCriticalSection(&cs);
         cout << "Текущее состояние массива: ";
-        for (int i = 0; i < arraySize; ++i)
-        {
+        for (int i = 0; i < arraySize; ++i) {
             cout << sharedArray[i] << " ";
         }
         cout << endl;
         LeaveCriticalSection(&cs);
 
-        // запрос номера потока для завершения
+        // Шаг 6c: Запрос номера потока для завершения
         int threadToTerminate;
-        cout << "Введите номер потока marker для завершения(1 -"
+        cout << "Введите номер потока marker для завершения (1-"
             << markerCount << "): ";
         cin >> threadToTerminate;
 
+        // Проверка корректности ввода
         if (threadToTerminate < 1 || threadToTerminate > markerCount ||
-            !activeMarkers[threadToTerminate - 1])
-        {
-            cout << "Неверный номер потока! AAAAAAAAAAAAAA" << endl;
+            !activeMarkers[threadToTerminate - 1]) {
+            cout << "Неверный номер потока! Попробуйте снова." << endl;
+
+            // Продолжаем все потоки
+            for (int i = 0; i < markerCount; ++i) {
+                if (activeMarkers[i]) {
+                    SetEvent(continueEvents[i]);
+                }
+            }
             continue;
         }
 
         int threadIndex = threadToTerminate - 1;
 
-        // Шаг 6d: Сигнал на завершение выбранному потоку
-        cout << "Завершение потока" << threadToTerminate << "..." << endl;
+        // Шаг 6d: Завершение выбранного потока
+        cout << "Завершение потока " << threadToTerminate << "..." << endl;
         SetEvent(terminateEvents[threadIndex]);
-
-        // ожидание завершения потока
         WaitForSingleObject(markerThreads[threadIndex], INFINITE);
         CloseHandle(markerThreads[threadIndex]);
         activeMarkers[threadIndex] = false;
         activeCount--;
 
-        // вывод состояния массива после очистки
+        // Шаг 6e: Вывод состояния после очистки
         EnterCriticalSection(&cs);
-        cout << "cостояние массива после завершения потока" << threadToTerminate << ": ";
-        for (int i = 0; i < arraySize; ++i)
-        {
+        cout << "Состояние массива после завершения потока " << threadToTerminate << ": ";
+        for (int i = 0; i < arraySize; ++i) {
             cout << sharedArray[i] << " ";
         }
         cout << endl;
         LeaveCriticalSection(&cs);
 
-        // сигнал на продолжение оставшимся потокам
-        if (activeCount > 0) 
-        {
+        // Шаг 6f: Продолжение работы оставшихся потоков
+        if (activeCount > 0) {
             cout << "Возобновление работы оставшихся " << activeCount << " потоков..." << endl;
             for (int i = 0; i < markerCount; ++i) {
                 if (activeMarkers[i]) {
@@ -240,11 +287,12 @@ int main()
         cout << "Активных потоков осталось: " << activeCount << endl;
     }
 
-    cout << "\n Все потоки marker завершены." << endl;
+    cout << "\nВсе потоки marker завершены!" << endl;
 
     DeleteCriticalSection(&cs);
-
+    DeleteCriticalSection(&outputCs);
     CloseHandle(startEvent);
+
     for (int i = 0; i < markerCount; ++i)
     {
         CloseHandle(suspendEvents[i]);
@@ -259,7 +307,8 @@ int main()
     delete[] markerThreads;
     delete[] threadData;
 
-    cout << "Программа завершена успешно.УРАУРАУРА happy happy Нажмите Enter для выхода." << endl;
+    cout << "Программа завершена успешно!" << endl;
+    cout << "Нажмите Enter для выхода...";
     cin.ignore();
     cin.get();
 
