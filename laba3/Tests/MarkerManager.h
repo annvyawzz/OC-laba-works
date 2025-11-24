@@ -13,11 +13,13 @@ public:
     void Run();
     void Cleanup();
 
-    // ������ ��� ������������
+    // Методы для тестирования
     int* GetSharedArray() const { return sharedArray; }
     int GetArraySize() const { return arraySize; }
     std::vector<bool> GetActiveMarkers() const { return activeMarkers; }
     void TerminateThread(int threadIndex);
+
+    void ManualRun(); // Запуск без интерактивного ввода для тестов
 
 private:
     int arraySize = 0;
@@ -33,9 +35,6 @@ private:
     HANDLE* continueEvents = nullptr;
     HANDLE startEvent = nullptr;
     HANDLE* markerThreads = nullptr;
-    HANDLE* MarkerManager::GetContinueEvents() const {
-        return continueEvents;
-    }
 
     MarkerThreadData* threadData = nullptr;
 
