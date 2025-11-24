@@ -32,8 +32,8 @@ DWORD WINAPI MarkerThread(LPVOID param)
             LeaveCriticalSection(data->cs);
 
             EnterCriticalSection(data->outputCs);
-            std::cout << "Ïîòîê " << data->threadId << " îòìåòèë " << markedCount
-                << " ýëåìåíòîâ. Îñòàíîâëåí íà èíäåêñå " << lastIndex << std::endl;
+            std::cout << "ÐŸÐ¾Ñ‚Ð¾Ðº " << data->threadId << " Ð¾Ñ‚Ð¼ÐµÑ‚Ð¸Ð» " << markedCount
+                << " ÑÐ»ÐµÐ¼ÐµÐ½Ñ‚Ð¾Ð². ÐžÑÑ‚Ð°Ð½Ð¾Ð²Ð»ÐµÐ½ Ð½Ð° Ð¸Ð½Ð´ÐµÐºÑÐµ " << lastIndex << std::endl;
             LeaveCriticalSection(data->outputCs);
 
             if (data->suspendEvent) {
@@ -77,8 +77,8 @@ DWORD WINAPI MarkerThread(LPVOID param)
         LeaveCriticalSection(data->cs);
 
         EnterCriticalSection(data->outputCs);
-        std::cout << "Ïîòîê " << data->threadId << " çàâåðøåí. Î÷èùåíî "
-            << cleanedCount << " ýëåìåíòîâ." << std::endl;
+        std::cout << "ÐŸÐ¾Ñ‚Ð¾Ðº " << data->threadId << " Ð·Ð°Ð²ÐµÑ€ÑˆÐµÐ½. ÐžÑ‡Ð¸Ñ‰ÐµÐ½Ð¾ "
+            << cleanedCount << " ÑÐ»ÐµÐ¼ÐµÐ½Ñ‚Ð¾Ð²." << std::endl;
         LeaveCriticalSection(data->outputCs);
     }
 
