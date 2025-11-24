@@ -6,7 +6,7 @@ MarkerManager::MarkerManager()
     : arraySize(0), markerCount(0), sharedArray(nullptr),
     suspendEvents(nullptr), terminateEvents(nullptr), continueEvents(nullptr),
     startEvent(nullptr), markerThreads(nullptr), threadData(nullptr) {
-    // Инициализируем критические секции
+    // РРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј РєСЂРёС‚РёС‡РµСЃРєРёРµ СЃРµРєС†РёРё
     InitializeCriticalSection(&cs);
     InitializeCriticalSection(&outputCs);
 }
@@ -72,15 +72,15 @@ void MarkerManager::CreateThreads() {
         );
 
         if (markerThreads[i] == NULL) {
-            std::cerr << "Ошибка создания потока " << (i + 1) << std::endl;
+            std::cerr << "РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ РїРѕС‚РѕРєР° " << (i + 1) << std::endl;
         }
     }
 }
 
 void MarkerManager::Run() {
-    std::cout << "Создано " << markerCount << " потоков marker" << std::endl;
+    std::cout << "РЎРѕР·РґР°РЅРѕ " << markerCount << " РїРѕС‚РѕРєРѕРІ marker" << std::endl;
     SetEvent(startEvent);
-    std::cout << "Все потоки запущены одновременно" << std::endl;
+    std::cout << "Р’СЃРµ РїРѕС‚РѕРєРё Р·Р°РїСѓС‰РµРЅС‹ РѕРґРЅРѕРІСЂРµРјРµРЅРЅРѕ" << std::endl;
 
     MainLoop();
 }
@@ -88,8 +88,14 @@ void MarkerManager::Run() {
 void MarkerManager::TerminateThread(int threadIndex) {
     if (threadIndex >= 0 && threadIndex < markerCount && activeMarkers[threadIndex]) {
         SetEvent(terminateEvents[threadIndex]);
-        WaitForSingleObject(markerThreads[threadIndex], INFINITE);
-        CloseHandle(markerThreads[threadIndex]);
+
+        // Р–РґРµРј Р·Р°РІРµСЂС€РµРЅРёСЏ РїРѕС‚РѕРєР°
+        if (markerThreads && markerThreads[threadIndex]) {
+            WaitForSingleObject(markerThreads[threadIndex], INFINITE);
+            CloseHandle(markerThreads[threadIndex]);
+            markerThreads[threadIndex] = nullptr; // РџРѕРјРµС‡Р°РµРј РєР°Рє Р·Р°РєСЂС‹С‚С‹Р№
+        }
+
         activeMarkers[threadIndex] = false;
     }
 }
@@ -118,7 +124,7 @@ void MarkerManager::MainLoop() {
         );
 
         if (waitResult == WAIT_FAILED) {
-            std::cout << "Ошибка при ожидании событий" << std::endl;
+            std::cout << "РћС€РёР±РєР° РїСЂРё РѕР¶РёРґР°РЅРёРё СЃРѕР±С‹С‚РёР№" << std::endl;
             break;
         }
 
@@ -131,7 +137,7 @@ void MarkerManager::MainLoop() {
         Sleep(50);
 
         EnterCriticalSection(&cs);
-        std::cout << "Текущее состояние массива: ";
+        std::cout << "РўРµРєСѓС‰РµРµ СЃРѕСЃС‚РѕСЏРЅРёРµ РјР°СЃСЃРёРІР°: ";
         for (int i = 0; i < arraySize; ++i) {
             std::cout << sharedArray[i] << " ";
         }
@@ -139,13 +145,13 @@ void MarkerManager::MainLoop() {
         LeaveCriticalSection(&cs);
 
         int threadToTerminate;
-        std::cout << "Введите номер потока marker для завершения (1-"
+        std::cout << "Р’РІРµРґРёС‚Рµ РЅРѕРјРµСЂ РїРѕС‚РѕРєР° marker РґР»СЏ Р·Р°РІРµСЂС€РµРЅРёСЏ (1-"
             << markerCount << "): ";
         std::cin >> threadToTerminate;
 
         if (threadToTerminate < 1 || threadToTerminate > markerCount ||
             !activeMarkers[threadToTerminate - 1]) {
-            std::cout << "Неверный номер потока! Попробуйте снова." << std::endl;
+            std::cout << "РќРµРІРµСЂРЅС‹Р№ РЅРѕРјРµСЂ РїРѕС‚РѕРєР°! РџРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°." << std::endl;
 
             for (int i = 0; i < markerCount; ++i) {
                 if (activeMarkers[i]) {
@@ -157,12 +163,12 @@ void MarkerManager::MainLoop() {
 
         int threadIndex = threadToTerminate - 1;
 
-        std::cout << "Завершение потока " << threadToTerminate << "..." << std::endl;
+        std::cout << "Р—Р°РІРµСЂС€РµРЅРёРµ РїРѕС‚РѕРєР° " << threadToTerminate << "..." << std::endl;
         TerminateThread(threadIndex);
         activeCount--;
 
         EnterCriticalSection(&cs);
-        std::cout << "Состояние массива после завершения потока " << threadToTerminate << ": ";
+        std::cout << "РЎРѕСЃС‚РѕСЏРЅРёРµ РјР°СЃСЃРёРІР° РїРѕСЃР»Рµ Р·Р°РІРµСЂС€РµРЅРёСЏ РїРѕС‚РѕРєР° " << threadToTerminate << ": ";
         for (int i = 0; i < arraySize; ++i) {
             std::cout << sharedArray[i] << " ";
         }
@@ -170,7 +176,7 @@ void MarkerManager::MainLoop() {
         LeaveCriticalSection(&cs);
 
         if (activeCount > 0) {
-            std::cout << "Возобновление работы оставшихся " << activeCount << " потоков..." << std::endl;
+            std::cout << "Р’РѕР·РѕР±РЅРѕРІР»РµРЅРёРµ СЂР°Р±РѕС‚С‹ РѕСЃС‚Р°РІС€РёС…СЃСЏ " << activeCount << " РїРѕС‚РѕРєРѕРІ..." << std::endl;
             for (int i = 0; i < markerCount; ++i) {
                 if (activeMarkers[i]) {
                     SetEvent(continueEvents[i]);
@@ -178,21 +184,30 @@ void MarkerManager::MainLoop() {
             }
         }
 
-        std::cout << "Активных потоков осталось: " << activeCount << std::endl;
+        std::cout << "РђРєС‚РёРІРЅС‹С… РїРѕС‚РѕРєРѕРІ РѕСЃС‚Р°Р»РѕСЃСЊ: " << activeCount << std::endl;
     }
 
-    std::cout << "\nВсе потоки marker завершены!" << std::endl;
+    std::cout << "\nР’СЃРµ РїРѕС‚РѕРєРё marker Р·Р°РІРµСЂС€РµРЅС‹!" << std::endl;
+}
+void MarkerManager::ManualRun() {
+    std::cout << "РЎРѕР·РґР°РЅРѕ " << markerCount << " РїРѕС‚РѕРєРѕРІ marker" << std::endl;
+    SetEvent(startEvent);
+    std::cout << "Р’СЃРµ РїРѕС‚РѕРєРё Р·Р°РїСѓС‰РµРЅС‹ РѕРґРЅРѕРІСЂРµРјРµРЅРЅРѕ" << std::endl;
 }
 
 void MarkerManager::Cleanup() {
-    // Завершаем все активные потоки
+    // Р—Р°РІРµСЂС€Р°РµРј РІСЃРµ Р°РєС‚РёРІРЅС‹Рµ РїРѕС‚РѕРєРё
     for (int i = 0; i < markerCount; ++i) {
         if (activeMarkers[i] && terminateEvents && terminateEvents[i]) {
             SetEvent(terminateEvents[i]);
         }
         if (markerThreads && markerThreads[i]) {
-            WaitForSingleObject(markerThreads[i], INFINITE);
-            CloseHandle(markerThreads[i]);
+            // Р–РґРµРј Р·Р°РІРµСЂС€РµРЅРёСЏ РїРѕС‚РѕРєР° СЃ С‚Р°Р№РјР°СѓС‚РѕРј РґР»СЏ Р±РµР·РѕРїР°СЃРЅРѕСЃС‚Рё
+            DWORD result = WaitForSingleObject(markerThreads[i], 1000);
+            if (result == WAIT_OBJECT_0) {
+                CloseHandle(markerThreads[i]);
+                markerThreads[i] = nullptr;
+            }
         }
     }
 
@@ -211,7 +226,10 @@ void MarkerManager::Cleanup() {
 
     if (suspendEvents) {
         for (int i = 0; i < markerCount; ++i) {
-            if (suspendEvents[i]) CloseHandle(suspendEvents[i]);
+            if (suspendEvents[i]) {
+                CloseHandle(suspendEvents[i]);
+                suspendEvents[i] = nullptr;
+            }
         }
         delete[] suspendEvents;
         suspendEvents = nullptr;
@@ -219,7 +237,10 @@ void MarkerManager::Cleanup() {
 
     if (terminateEvents) {
         for (int i = 0; i < markerCount; ++i) {
-            if (terminateEvents[i]) CloseHandle(terminateEvents[i]);
+            if (terminateEvents[i]) {
+                CloseHandle(terminateEvents[i]);
+                terminateEvents[i] = nullptr;
+            }
         }
         delete[] terminateEvents;
         terminateEvents = nullptr;
@@ -227,7 +248,10 @@ void MarkerManager::Cleanup() {
 
     if (continueEvents) {
         for (int i = 0; i < markerCount; ++i) {
-            if (continueEvents[i]) CloseHandle(continueEvents[i]);
+            if (continueEvents[i]) {
+                CloseHandle(continueEvents[i]);
+                continueEvents[i] = nullptr;
+            }
         }
         delete[] continueEvents;
         continueEvents = nullptr;
