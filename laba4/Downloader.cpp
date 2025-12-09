@@ -1,224 +1,154 @@
-#include "Downloader.h"
 #include <iostream>
 #include <string>
-#include <random>
-#include <algorithm>
-#include <chrono>
-#include <thread>
 #include <vector>
-#include <cmath>
-#include <sstream>
+#include <algorithm> // Для individual variant
+#include <sstream>   // Для individual variant
+#include <windows.h>
+#include <ctime>
 
-Downloader::Downloader()
-    : m_downloadSlots(NULL), m_logMutex(NULL), m_browserEvent(NULL) {
-}
+using namespace std;
 
-Downloader::~Downloader() {
-    if (m_downloadSlots) CloseHandle(m_downloadSlots);
-    if (m_logMutex) CloseHandle(m_logMutex);
-    if (m_browserEvent) CloseHandle(m_browserEvent);
-}
+// --- Имена именованных объектов синхронизации (должны совпадать) ---
+const char* SEMAPHORE_NAME = "DownloadSlots";
+const char* MUTEX_NAME = "LogAccessMutex";
+const char* EVENT_NAME = "BrowserClosingEvent";
 
-bool Downloader::Initialize() {
-    return OpenSyncObjects();
-}
-
-bool Downloader::OpenSyncObjects() {
-    m_downloadSlots = OpenSemaphoreA(SEMAPHORE_ALL_ACCESS, FALSE, "DownloadSlots");
-    if (!m_downloadSlots) {
-        return false;
-    }
-
-    m_logMutex = OpenMutexA(MUTEX_ALL_ACCESS, FALSE, "LogAccessMutex");
-    if (!m_logMutex) {
-        return false;
-    }
-
-    m_browserEvent = OpenEventA(EVENT_ALL_ACCESS, FALSE, "BrowserClosingEvent");
-    if (!m_browserEvent) {
-        return false;
-    }
-
-    return true;
-}
-
-void Downloader::LogMessage(const std::string& message) {
-    WaitForSingleObject(m_logMutex, INFINITE);
-    std::cout << "[PID: " << GetCurrentProcessId() << "] " << message << std::endl;
-    ReleaseMutex(m_logMutex);
-}
-
-void Downloader::Run() {
-    HANDLE waitHandles[2] = { m_downloadSlots, m_browserEvent };
-
-    DWORD result = WaitForMultipleObjects(2, waitHandles, FALSE, INFINITE);
-
-    if (result == WAIT_OBJECT_0) {
-        LogMessage("Connection established. Starting download of 'file_" +
-            std::to_string(GetCurrentProcessId()) + ".dat'...");
-
-        std::this_thread::sleep_for(std::chrono::seconds(1 + (GetCurrentProcessId() % 3)));
-
-        ProcessFile();
-
-        LogMessage("File 'file_" + std::to_string(GetCurrentProcessId()) +
-            ".dat' processed successfully.");
-
-        ReleaseSemaphore(m_downloadSlots, 1, NULL);
+// --- Вспомогательная функция для логирования (защищена мьютексом) ---
+void Log(HANDLE hMutex, const string& message) {
+    // Захват мьютекса
+    DWORD waitResult = WaitForSingleObject(hMutex, INFINITE);
+    if (waitResult == WAIT_OBJECT_0) {
+        // Запись в лог (консоль)
+        cout << message << endl;
+        // Освобождение мьютекса
+        ReleaseMutex(hMutex);
     }
     else {
-        LogMessage("Download interrupted - browser is closing.");
+        // Если захватить не удалось (ошибка)
+        cerr << "[PID: " << GetCurrentProcessId() << "] ERROR: Failed to acquire Log Mutex. Message lost: " << message << endl;
     }
 }
 
-void Downloader::ProcessFile() {
-    int taskId = GetCurrentProcessId() % 9;
-
-    switch (taskId) {
-    case 0: ReverseBytes(); break;
-    case 1: CountWords(); break;
-    case 2: SortChars(); break;
-    case 3: CalculateStdDev(); break;
-    case 4: CountBrackets(); break;
-    case 5: FindLongestString(); break;
-    case 6: CheckBalancedBrackets(); break;
-    case 7: MatrixProduct(); break;
-    case 8: CountPrimes(); break;
-    }
-}
-
-void Downloader::ReverseBytes() {
-    const int SIZE = 2048;
-    unsigned char data[SIZE];
-
-    for (int i = 0; i < SIZE; i++) {
-        data[i] = rand() % 256;
-    }
-
-    for (int i = 0; i < SIZE / 2; i++) {
-        std::swap(data[i], data[SIZE - 1 - i]);
-    }
-}
-
-void Downloader::CountWords() {
-    std::string text = "This is a sample text with several words to count in this string";
-    std::istringstream iss(text);
-    int wordCount = 0;
-    std::string word;
-
-    while (iss >> word) {
-        wordCount++;
-    }
-}
-
-void Downloader::SortChars() {
-    const int SIZE = 500;
-    char chars[SIZE];
-
-    for (int i = 0; i < SIZE; i++) {
-        chars[i] = 'A' + (rand() % 26);
-    }
-
-    std::sort(chars, chars + SIZE);
-}
-
-void Downloader::CalculateStdDev() {
-    const int SIZE = 200;
-    double numbers[SIZE];
-    double sum = 0, mean, stdDev = 0;
-
-    for (int i = 0; i < SIZE; i++) {
-        numbers[i] = rand() % 100;
-        sum += numbers[i];
-    }
-
-    mean = sum / SIZE;
-
-    for (int i = 0; i < SIZE; i++) {
-        stdDev += pow(numbers[i] - mean, 2);
-    }
-
-    stdDev = sqrt(stdDev / SIZE);
-}
-
-void Downloader::CountBrackets() {
-    std::string text = "This (is) a [sample] {text} with (various [types] of {brackets})";
-    int openCount = 0, closeCount = 0;
-
-    for (char c : text) {
-        if (c == '(' || c == '[' || c == '{') openCount++;
-        if (c == ')' || c == ']' || c == '}') closeCount++;
-    }
-}
-
-void Downloader::FindLongestString() {
-    std::vector<std::string> strings = {
-        "short", "medium length", "this is the longest string", "another"
+// --- Индивидуальный вариант №6: Найти самую длинную строку в массиве строк ---
+void ProcessFile(const string& fileName) {
+    // Имитация данных (массив строк)
+    vector<string> data = {
+        "short",
+        "This is a medium length string.",
+        "A bit longer than the medium one.",
+        "The very very very longest string in the entire array of data for processing. Wow.",
+        "last"
     };
 
-    std::string longest = strings[0];
-    for (const auto& str : strings) {
-        if (str.length() > longest.length()) {
-            longest = str;
+    // Выполнение задачи
+    size_t maxLength = 0;
+    string longestString;
+
+    for (const auto& str : data) {
+        if (str.length() > maxLength) {
+            maxLength = str.length();
+            longestString = str;
         }
     }
+
+    // Имитация результата обработки
+    // В реальном приложении здесь было бы сохранение результата
+    Log(GetStdHandle(STD_OUTPUT_HANDLE),
+        "[PID: " + to_string(GetCurrentProcessId()) + "] **Processing Done:** Longest string length is " +
+        to_string(maxLength) + " for file '" + fileName + "'.");
 }
 
-void Downloader::CheckBalancedBrackets() {
-    std::string text = "({[]})";
-    std::vector<char> stack;
-    bool balanced = true;
 
-    for (char c : text) {
-        if (c == '(' || c == '[' || c == '{') {
-            stack.push_back(c);
-        }
-        else if (c == ')' || c == ']' || c == '}') {
-            if (stack.empty()) {
-                balanced = false;
-                break;
-            }
+int main(int argc, char* argv[]) {
+    // Получение PID для сообщений
+    DWORD pid = GetCurrentProcessId();
 
-            char top = stack.back();
-            stack.pop_back();
-
-            if ((c == ')' && top != '(') ||
-                (c == ']' && top != '[') ||
-                (c == '}' && top != '{')) {
-                balanced = false;
-                break;
-            }
-        }
+    if (argc < 2) {
+        cerr << "[PID: " << pid << "] Error: Downloader requires file name as argument. Exiting." << endl;
+        return 1;
     }
 
-    balanced = balanced && stack.empty();
-}
+    string fileName = argv[1];
+    string uniqueId = (argc > 2) ? argv[2] : "N/A"; // Уникальный ID для трассировки
 
-void Downloader::MatrixProduct() {
-    const int SIZE = 10;
-    int matrix[SIZE][SIZE];
-    long long product = 1;
-
-    for (int i = 0; i < SIZE; i++) {
-        for (int j = 0; j < SIZE; j++) {
-            matrix[i][j] = 1 + (rand() % 5);
-            product *= matrix[i][j];
-        }
+    // 1. "Подключение" к среде браузера (открытие именованных объектов)
+    // Открытие семафора
+    HANDLE hSemaphore = OpenSemaphoreA(SEMAPHORE_ALL_ACCESS, FALSE, SEMAPHORE_NAME);
+    if (hSemaphore == NULL) {
+        cerr << "[PID: " << pid << "] Error: Failed to open Semaphore '" << SEMAPHORE_NAME << "'. Code: " << GetLastError() << endl;
+        return 1;
     }
-}
 
-void Downloader::CountPrimes() {
-    const int LIMIT = 10000;
-    int primeCount = 0;
-
-    for (int i = 2; i <= LIMIT; i++) {
-        bool isPrime = true;
-        for (int j = 2; j * j <= i; j++) {
-            if (i % j == 0) {
-                isPrime = false;
-                break;
-            }
-        }
-        if (isPrime) primeCount++;
+    // Открытие мьютекса
+    HANDLE hMutex = OpenMutexA(MUTEX_ALL_ACCESS, FALSE, MUTEX_NAME);
+    if (hMutex == NULL) {
+        cerr << "[PID: " << pid << "] Error: Failed to open Mutex '" << MUTEX_NAME << "'. Code: " << GetLastError() << endl;
+        CloseHandle(hSemaphore);
+        return 1;
     }
+
+    // Открытие события
+    HANDLE hEvent = OpenEventA(EVENT_ALL_ACCESS, FALSE, EVENT_NAME);
+    if (hEvent == NULL) {
+        cerr << "[PID: " << pid << "] Error: Failed to open Event '" << EVENT_NAME << "'. Code: " << GetLastError() << endl;
+        CloseHandle(hSemaphore);
+        CloseHandle(hMutex);
+        return 1;
+    }
+
+    Log(hMutex, "[PID: " + to_string(pid) + "] Process #" + uniqueId + " started for '" + fileName + "'. Resources opened.");
+
+    // --- Шаг 1: Ожидание в очереди (Семафор или Событие закрытия) ---
+    HANDLE handles[] = { hSemaphore, hEvent }; // hSemaphore - индекс 0, hEvent - индекс 1
+
+    Log(hMutex, "[PID: " + to_string(pid) + "] Process #" + uniqueId + " waiting for a download slot...");
+
+    DWORD waitResult = WaitForMultipleObjects(
+        2,        // Количество объектов для ожидания
+        handles,  // Массив дескрипторов
+        FALSE,    // Ждать ЛЮБОГО объекта (Wait Any)
+        INFINITE  // Ждать бесконечно
+    );
+
+    // Проверка результата ожидания
+    if (waitResult == WAIT_OBJECT_0) { // Сработал Семафор (hSemaphore)
+        // --- Шаг 2: Начало загрузки ---
+
+        // 4a, 4b, 4c: Захват мьютекса и логирование
+        Log(hMutex, "[PID: " + to_string(pid) + "] Slot acquired. Connection established. Starting download of '" + fileName + "'...");
+
+        // 4d: Имитация "обработки" скачанного файла
+        ProcessFile(fileName);
+
+        // 4e: Имитация времени загрузки (1-3 секунды)
+        srand(pid * time(0)); // Установка seed для рандомизации
+        int sleepTime = (rand() % 3 + 1) * 1000; // 1000, 2000 или 3000 мс
+        Sleep(sleepTime);
+
+        // 4f, 4g, 4h: Логирование завершения
+        Log(hMutex, "[PID: " + to_string(pid) + "] File '" + fileName + "' processed successfully in " + to_string(sleepTime / 1000) + "s.");
+
+        // --- Шаг 3: Завершение (Успешно) ---
+        // Освобождение семафора (слота)
+        ReleaseSemaphore(hSemaphore, 1, NULL);
+        Log(hMutex, "[PID: " + to_string(pid) + "] Slot released. Task finished.");
+
+    }
+    else if (waitResult == (WAIT_OBJECT_0 + 1)) { // Сработало Событие (hEvent)
+        // --- Шаг 3: Завершение (Прервано) ---
+        // Браузер закрывается - прерываем работу. Не освобождаем слот, т.к. не занимали.
+        Log(hMutex, "[PID: " + to_string(pid) + "] Received **BrowserClosingEvent**. Download of '" + fileName + "' interrupted.");
+
+    }
+    else {
+        // Ошибка ожидания
+        Log(hMutex, "[PID: " + to_string(pid) + "] Error waiting for slot or close signal. Code: " + to_string(GetLastError()) + ". Exiting.");
+    }
+
+    // Корректное закрытие дескрипторов
+    CloseHandle(hSemaphore);
+    CloseHandle(hMutex);
+    CloseHandle(hEvent);
+
+    return 0;
 }
