@@ -1,154 +1,173 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <algorithm> // Для individual variant
-#include <sstream>   // Для individual variant
+#include <sstream>
 #include <windows.h>
 #include <ctime>
 
 using namespace std;
 
-// --- Имена именованных объектов синхронизации (должны совпадать) ---
-const char* SEMAPHORE_NAME = "DownloadSlots";
-const char* MUTEX_NAME = "LogAccessMutex";
-const char* EVENT_NAME = "BrowserClosingEvent";
+const char* SEMAPHORE_NAME = "DownloadSlots_NEW_2024";
+const char* MUTEX_NAME = "LogAccessMutex_NEW_2024";
+const char* EVENT_NAME = "BrowserClosingEvent_NEW_2024";
 
-// --- Вспомогательная функция для логирования (защищена мьютексом) ---
-void Log(HANDLE hMutex, const string& message) {
-    // Захват мьютекса
+void Log(HANDLE hMutex, const string& message)
+{
     DWORD waitResult = WaitForSingleObject(hMutex, INFINITE);
-    if (waitResult == WAIT_OBJECT_0) {
-        // Запись в лог (консоль)
-        cout << message << endl;
-        // Освобождение мьютекса
+
+    if (waitResult == WAIT_OBJECT_0)
+    {
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        char timeStr[64];
+        sprintf_s(timeStr, "%02d:%02d:%02d.%03d",
+            st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+
+        cout << "[" << timeStr << "] " << message << endl;
         ReleaseMutex(hMutex);
     }
     else {
-        // Если захватить не удалось (ошибка)
-        cerr << "[PID: " << GetCurrentProcessId() << "] ERROR: Failed to acquire Log Mutex. Message lost: " << message << endl;
+        cerr << "[ERROR] Не удалось захватить мьютекс для логирования!" << endl;
     }
 }
 
-// --- Индивидуальный вариант №6: Найти самую длинную строку в массиве строк ---
-void ProcessFile(const string& fileName) {
-    // Имитация данных (массив строк)
+void ProcessFile(HANDLE hMutex, const string& fileName)
+{
+    DWORD pid = GetCurrentProcessId();
+
     vector<string> data = {
-        "short",
-        "This is a medium length string.",
-        "A bit longer than the medium one.",
-        "The very very very longest string in the entire array of data for processing. Wow.",
-        "last"
+        "короткая строка",
+        "Это строка средней длины.",
+        "Немного длиннее, чем средняя.",
+        "Самая самая самая длинная строка в этом массиве. Вот это да пам пам пам парам !",
+        "последняя строка в списке",
+        "Еще одна дополнительная строка",
+        "Строка с цифрами: 1234567890",
+        "Просто текст",
+        "И еще немного текста для разнообразия",
+        "Финальная строка в наборе"
     };
 
-    // Выполнение задачи
+    data.push_back("Имя обрабатываемого файла: " + fileName);
+
+    Log(hMutex, "[PID: " + to_string(pid) +
+        "] Начинаю обработку файла: " + fileName);
+    Log(hMutex, "[PID: " + to_string(pid) +
+        "] Всего строк для анализа: " + to_string(data.size()));
+
     size_t maxLength = 0;
     string longestString;
+    int longestIndex = -1;
 
-    for (const auto& str : data) {
-        if (str.length() > maxLength) {
-            maxLength = str.length();
-            longestString = str;
+    for (size_t i = 0; i < data.size(); i++) {
+        if (data[i].length() > maxLength) {
+            maxLength = data[i].length();
+            longestString = data[i];
+            longestIndex = static_cast<int>(i);
         }
     }
 
-    // Имитация результата обработки
-    // В реальном приложении здесь было бы сохранение результата
-    Log(GetStdHandle(STD_OUTPUT_HANDLE),
-        "[PID: " + to_string(GetCurrentProcessId()) + "] **Processing Done:** Longest string length is " +
-        to_string(maxLength) + " for file '" + fileName + "'.");
+    stringstream result;
+    result << "[PID: " << pid << "] **РЕЗУЛЬТАТ ОБРАБОТКИ**" << endl;
+    result << "  Файл: " << fileName << endl;
+    result << "  Самая длинная строка (индекс " << longestIndex << "):" << endl;
+    result << "  \"" << longestString << "\"" << endl;
+    result << "  Длина: " << maxLength << " символов";
+
+    Log(hMutex, result.str());
 }
 
-
-int main(int argc, char* argv[]) {
-    // Получение PID для сообщений
+int main(int argc, char* argv[])
+{
+    setlocale(LC_ALL, "rus");
     DWORD pid = GetCurrentProcessId();
 
     if (argc < 2) {
-        cerr << "[PID: " << pid << "] Error: Downloader requires file name as argument. Exiting." << endl;
+        cerr << "[PID: " << pid << "] Ошибка: Downloader требует имя файла в качестве аргумента. Выход" << endl;
         return 1;
     }
 
     string fileName = argv[1];
-    string uniqueId = (argc > 2) ? argv[2] : "N/A"; // Уникальный ID для трассировки
+    string uniqueId = (argc > 2) ? argv[2] : "N/A";
 
-    // 1. "Подключение" к среде браузера (открытие именованных объектов)
-    // Открытие семафора
     HANDLE hSemaphore = OpenSemaphoreA(SEMAPHORE_ALL_ACCESS, FALSE, SEMAPHORE_NAME);
     if (hSemaphore == NULL) {
-        cerr << "[PID: " << pid << "] Error: Failed to open Semaphore '" << SEMAPHORE_NAME << "'. Code: " << GetLastError() << endl;
+        cerr << "[PID: " << pid << "] Ошибка: Не удалось открыть Семафор '" << SEMAPHORE_NAME << "'. Код: " << GetLastError() << endl;
         return 1;
     }
 
-    // Открытие мьютекса
     HANDLE hMutex = OpenMutexA(MUTEX_ALL_ACCESS, FALSE, MUTEX_NAME);
     if (hMutex == NULL) {
-        cerr << "[PID: " << pid << "] Error: Failed to open Mutex '" << MUTEX_NAME << "'. Code: " << GetLastError() << endl;
+        cerr << "[PID: " << pid << "] Ошибка: Не удалось открыть Мьютекс '" << MUTEX_NAME << "'. Код: " << GetLastError() << endl;
         CloseHandle(hSemaphore);
         return 1;
     }
 
-    // Открытие события
     HANDLE hEvent = OpenEventA(EVENT_ALL_ACCESS, FALSE, EVENT_NAME);
     if (hEvent == NULL) {
-        cerr << "[PID: " << pid << "] Error: Failed to open Event '" << EVENT_NAME << "'. Code: " << GetLastError() << endl;
-        CloseHandle(hSemaphore);
-        CloseHandle(hMutex);
-        return 1;
+        ULONGLONG tickCount = GetTickCount64() % 1000;
+        string altEventName = string(EVENT_NAME) + "_" + to_string(tickCount);
+        hEvent = OpenEventA(EVENT_ALL_ACCESS, FALSE, altEventName.c_str());
+
+        if (hEvent == NULL) {
+            cerr << "[PID: " << pid << "] Ошибка: Не удалось открыть Событие. Код: " << GetLastError() << endl;
+            CloseHandle(hSemaphore);
+            CloseHandle(hMutex);
+            return 1;
+        }
     }
 
-    Log(hMutex, "[PID: " + to_string(pid) + "] Process #" + uniqueId + " started for '" + fileName + "'. Resources opened.");
+    Log(hMutex, "[PID: " + to_string(pid) + "] Процесс #" + uniqueId +
+        " запущен для файла '" + fileName + "'. Ресурсы открыты.");
 
-    // --- Шаг 1: Ожидание в очереди (Семафор или Событие закрытия) ---
-    HANDLE handles[] = { hSemaphore, hEvent }; // hSemaphore - индекс 0, hEvent - индекс 1
+    HANDLE handles[] = { hSemaphore, hEvent };
 
-    Log(hMutex, "[PID: " + to_string(pid) + "] Process #" + uniqueId + " waiting for a download slot...");
+    Log(hMutex, "[PID: " + to_string(pid) + "] Процесс #" + uniqueId +
+        " ожидает слот загрузки...");
 
     DWORD waitResult = WaitForMultipleObjects(
-        2,        // Количество объектов для ожидания
-        handles,  // Массив дескрипторов
-        FALSE,    // Ждать ЛЮБОГО объекта (Wait Any)
-        INFINITE  // Ждать бесконечно
+        2,
+        handles,
+        FALSE,
+        INFINITE
     );
 
-    // Проверка результата ожидания
-    if (waitResult == WAIT_OBJECT_0) { // Сработал Семафор (hSemaphore)
-        // --- Шаг 2: Начало загрузки ---
+    if (waitResult == WAIT_OBJECT_0)
+    {
+        Log(hMutex, "[PID: " + to_string(pid) + "] Слот получен! Начинаю загрузку файла '" + fileName + "'...");
+        Log(hMutex, "[PID: " + to_string(pid) + "] Connection established. Starting download of '" + fileName + "'...");
 
-        // 4a, 4b, 4c: Захват мьютекса и логирование
-        Log(hMutex, "[PID: " + to_string(pid) + "] Slot acquired. Connection established. Starting download of '" + fileName + "'...");
+        ProcessFile(hMutex, fileName);
 
-        // 4d: Имитация "обработки" скачанного файла
-        ProcessFile(fileName);
+        srand(static_cast<unsigned int>(pid * time(NULL)));
+        int sleepTime = (rand() % 3 + 1) * 1000;
+        Sleep(static_cast<DWORD>(sleepTime));
 
-        // 4e: Имитация времени загрузки (1-3 секунды)
-        srand(pid * time(0)); // Установка seed для рандомизации
-        int sleepTime = (rand() % 3 + 1) * 1000; // 1000, 2000 или 3000 мс
-        Sleep(sleepTime);
+        Log(hMutex, "[PID: " + to_string(pid) + "] File '" + fileName +
+            "' processed successfully. Время обработки: " +
+            to_string(sleepTime / 1000.0) + " сек.");
 
-        // 4f, 4g, 4h: Логирование завершения
-        Log(hMutex, "[PID: " + to_string(pid) + "] File '" + fileName + "' processed successfully in " + to_string(sleepTime / 1000) + "s.");
-
-        // --- Шаг 3: Завершение (Успешно) ---
-        // Освобождение семафора (слота)
-        ReleaseSemaphore(hSemaphore, 1, NULL);
-        Log(hMutex, "[PID: " + to_string(pid) + "] Slot released. Task finished.");
-
+        if (!ReleaseSemaphore(hSemaphore, 1, NULL)) {
+            Log(hMutex, "[PID: " + to_string(pid) + "] Ошибка освобождения слота: " + to_string(GetLastError()));
+        }
+        else {
+            Log(hMutex, "[PID: " + to_string(pid) + "] Слот освобожден. Задача завершена.");
+        }
     }
-    else if (waitResult == (WAIT_OBJECT_0 + 1)) { // Сработало Событие (hEvent)
-        // --- Шаг 3: Завершение (Прервано) ---
-        // Браузер закрывается - прерываем работу. Не освобождаем слот, т.к. не занимали.
-        Log(hMutex, "[PID: " + to_string(pid) + "] Received **BrowserClosingEvent**. Download of '" + fileName + "' interrupted.");
-
+    else if (waitResult == (WAIT_OBJECT_0 + 1))
+    {
+        Log(hMutex, "[PID: " + to_string(pid) + "] Получен **BrowserClosingEvent**. Загрузка '" +
+            fileName + "' прервана.");
     }
-    else {
-        // Ошибка ожидания
-        Log(hMutex, "[PID: " + to_string(pid) + "] Error waiting for slot or close signal. Code: " + to_string(GetLastError()) + ". Exiting.");
+    else
+    {
+        DWORD error = GetLastError();
+        Log(hMutex, "[PID: " + to_string(pid) + "] Ошибка при ожидании. Код: " + to_string(error));
     }
 
-    // Корректное закрытие дескрипторов
-    CloseHandle(hSemaphore);
-    CloseHandle(hMutex);
-    CloseHandle(hEvent);
+    if (hSemaphore != NULL) CloseHandle(hSemaphore);
+    if (hMutex != NULL) CloseHandle(hMutex);
+    if (hEvent != NULL) CloseHandle(hEvent);
 
     return 0;
 }
