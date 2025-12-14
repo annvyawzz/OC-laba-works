@@ -5,75 +5,127 @@
 #include <ctime>
 
 using namespace std;
+const char* SEMAPHORE_NAME = "DownloadSlots_NEW_2024";
+const char* MUTEX_NAME = "LogAccessMutex_NEW_2024";
+const char* EVENT_NAME = "BrowserClosingEvent_NEW_2024";
 
-// --- Имена именованных объектов синхронизации ---
-const char* SEMAPHORE_NAME = "DownloadSlots";
-const char* MUTEX_NAME = "LogAccessMutex";
-const char* EVENT_NAME = "BrowserClosingEvent";
+int main()
+{
+    setlocale(LC_ALL, "rus");
+    int N_slots = 0;
+    int M_downloads = 0;
 
-int main() {
-    // 1. Запрос параметров
-    int N_slots;
-    int M_downloads;
+    cout << "--- Инициализация Browser.exe ---" << endl;
 
-    cout << "--- Browser.exe Initialization ---" << endl;
-    cout << "Enter max simultaneous downloads (N): ";
-    cin >> N_slots;
-    cout << "Enter total files to download (M, must be > N): ";
-    cin >> M_downloads;
+    do {
+        cout << "Введите максимальное число одновременных загрузок N: ";
+        cin >> N_slots;
+        if (N_slots <= 0 || N_slots > 15) {
+            cout << "Ошибка: N должно быть от 1 до 15" << endl;
+            cin.clear();
+            cin.ignore(10000, '\n');
+        }
+    } while (N_slots <= 0 || N_slots > 10);
 
-    if (M_downloads <= N_slots) {
-        cerr << "Error: M must be greater than N. Exiting." << endl;
-        return 1;
-    }
+    do {
+        cout << "Введите общее число файлов для загрузки (M, должно быть > N ): ";
+        cin >> M_downloads;
+        if (M_downloads <= N_slots) {
+            cout << "Ошибка: M должно быть больше, чем N." << endl;
+            cin.clear();
+            cin.ignore(10000, '\n');
+        }
+        else if (M_downloads > 30) {
+            cout << "Ошибка: M не может быть больше 30" << endl;
+            cin.clear();
+            cin.ignore(10000, '\n');
+        }
+    } while (M_downloads <= N_slots || M_downloads > 20);
 
-    // 2. Создание именованных объектов синхронизации
-    cout << "\n2. Creating synchronization objects..." << endl;
+    cout << "\n2. Создание объектов синхронизации..." << endl;
 
-    // Семафор: DownloadSlots (Начальное/Макс. значение = N)
+    // 1. Создаём семафор
     HANDLE hSemaphore = CreateSemaphoreA(
-        NULL,             // Атрибуты безопасности по умолчанию
-        N_slots,          // Начальное количество
-        N_slots,          // Максимальное количество
-        SEMAPHORE_NAME    // Имя семафора
+        NULL,
+        N_slots,
+        N_slots,
+        SEMAPHORE_NAME
     );
     if (hSemaphore == NULL) {
-        cerr << "Error creating Semaphore: " << GetLastError() << endl;
+        cerr << "Ошибка создания Семафора: " << GetLastError() << endl;
         return 1;
     }
-    cout << "Semaphore '" << SEMAPHORE_NAME << "' created with N=" << N_slots << "." << endl;
+    cout << "Семафор '" << SEMAPHORE_NAME << "' создан с N=" << N_slots << "." << endl;
 
-    // Мьютекс: LogAccessMutex
+    // 2. Создаём мьютекс
     HANDLE hMutex = CreateMutexA(
-        NULL,             // Атрибуты безопасности по умолчанию
-        FALSE,            // Изначально не захвачен
-        MUTEX_NAME        // Имя мьютекса
+        NULL,
+        FALSE,
+        MUTEX_NAME
     );
     if (hMutex == NULL) {
-        cerr << "Error creating Mutex: " << GetLastError() << endl;
+        cerr << "Ошибка создания Мьютекса: " << GetLastError() << endl;
         CloseHandle(hSemaphore);
         return 1;
     }
-    cout << "Mutex '" << MUTEX_NAME << "' created." << endl;
+    cout << "Мьютекс '" << MUTEX_NAME << "' создан." << endl;
 
-    // Событие: BrowserClosingEvent (Ручной сброс, Изначально несигнальное)
+    // 3. Сначала закрываем старое событие, если оно существует
+    HANDLE hOldEvent = OpenEventA(EVENT_ALL_ACCESS, FALSE, EVENT_NAME);
+    if (hOldEvent != NULL) {
+        cout << "Обнаружено старое событие. Закрываю..." << endl;
+        CloseHandle(hOldEvent);
+        Sleep(100);
+    }
+
+    // 4. Создаём новое событие
     HANDLE hEvent = CreateEventA(
-        NULL,             // Атрибуты безопасности по умолчанию
-        TRUE,             // Ручной сброс (Manual-reset)
-        FALSE,            // Изначально несигнальное (Non-signaled)
-        EVENT_NAME        // Имя события
+        NULL,
+        TRUE,
+        FALSE,
+        EVENT_NAME
     );
     if (hEvent == NULL) {
-        cerr << "Error creating Event: " << GetLastError() << endl;
+        cerr << "Ошибка создания События: " << GetLastError() << endl;
         CloseHandle(hSemaphore);
         CloseHandle(hMutex);
         return 1;
     }
-    cout << "Event '" << EVENT_NAME << "' created (Manual-reset, Initial: Non-signaled)." << endl;
+    //cout << "Событие '" << EVENT_NAME << "' создано (Ручной сброс, Изначально: Несигнальное)." << endl;
 
-    // 3. Запуск M экземпляров Downloader.exe
+    // 5. Двойная проверка состояния события
+    DWORD state = WaitForSingleObject(hEvent, 0);
+    if (state == WAIT_OBJECT_0) {
+        cout << "ОШИБКА: Событие в сигнальном состоянии!" << endl;
+        ResetEvent(hEvent);
+
+        state = WaitForSingleObject(hEvent, 0);
+        if (state == WAIT_OBJECT_0) {
+            cout << "Не удалось исправить" << endl;
+            CloseHandle(hEvent);
+
+            ULONGLONG tickCount = GetTickCount64();
+            string uniqueEventName = string(EVENT_NAME) + "_" + to_string(tickCount);
+            hEvent = CreateEventA(NULL, TRUE, FALSE, uniqueEventName.c_str());
+            if (hEvent == NULL) {
+                cerr << "Критическая ошибка создания события. Выход." << endl;
+                CloseHandle(hSemaphore);
+                CloseHandle(hMutex);
+                return 1;
+            }
+            //cout << "Создано событие с уникальным именем: " << uniqueEventName << endl;
+        }
+        else {
+          //cout << "Событие исправлено. Теперь в несигнальном состоянии." << endl;
+        }
+    }
+    else {
+       // cout << "Событие создано в НЕСИГНАЛЬНОМ состоянии" << endl;
+    }
+
+    // 6. Запуск M экземпляров Downloader.exe
     vector<HANDLE> downloader_handles;
-    cout << "\n3. Launching " << M_downloads << " instances of Downloader.exe..." << endl;
+    cout << "\n3. Запуск " << M_downloads << " экземпляров Downloader.exe..." << endl;
 
     for (int i = 0; i < M_downloads; ++i) {
         STARTUPINFOA si;
@@ -82,72 +134,87 @@ int main() {
         si.cb = sizeof(si);
         ZeroMemory(&pi, sizeof(pi));
 
-        // Имя файла для имитации (для индивидуального варианта)
         string fileName = "file_" + to_string(i + 1) + ".txt";
-
         string commandLine = "Downloader.exe " + fileName + " " + to_string(i + 1);
 
         if (!CreateProcessA(
-            NULL,                       // Модуль (можно NULL, если путь в командной строке)
-            (LPSTR)commandLine.c_str(), // Командная строка (должна быть не-const)
-            NULL,                       // Атрибуты безопасности процесса
-            NULL,                       // Атрибуты безопасности потока
-            FALSE,                      // Не наследовать дескрипторы
-            CREATE_NEW_CONSOLE,         // Создать новое консольное окно
-            NULL,                       // Использовать окружение родителя
-            NULL,                       // Использовать текущую директорию
-            &si,                        // Информация о запуске
-            &pi                         // Информация о процессе
+            NULL,
+            const_cast<LPSTR>(commandLine.c_str()),
+            NULL,
+            NULL,
+            FALSE,
+            0,
+            NULL,
+            NULL,
+            &si,
+            &pi
         )) {
-            cerr << "Error launching Downloader #" << i + 1 << ": " << GetLastError() << endl;
+            cerr << "Ошибка запуска Downloader #" << i + 1 << ": " << GetLastError() << endl;
             continue;
         }
 
-        // Сохраняем дескриптор процесса для ожидания
         downloader_handles.push_back(pi.hProcess);
-
-        // Закрываем ненужный дескриптор потока
         CloseHandle(pi.hThread);
+
+        Sleep(50);
     }
-    cout << M_downloads << " instances launched." << endl;
 
-    // 4. Ожидание нажатия Enter
-    cout << "\n--- Browser is running. Press **Enter** to close... ---" << endl;
-    cin.ignore(); // Очистка буфера после cin >> M_downloads
-    cin.get();    // Ожидание нажатия Enter
+    cout << M_downloads << " экземпляров запущено." << endl;
 
-    // 5. Завершение работы
-    cout << "\n5a. Browser is closing. Sending termination signal to all downloads..." << endl;
+    //cout << "\n--- Browser запущен. Нажмите **Enter**, чтобы закрыть... ---" << endl;
+    cout << "Первые " << N_slots << " процессов начнут загрузку сразу..." << endl;
+    cout << "Остальные будут ждать освобождения слотов" << endl;
+    cout << "Текущий статус: " << downloader_handles.size() << " процессов запущено" << endl;
 
-    // 5b. Переводим событие в сигнальное состояние
+    cin.ignore();
+    cin.get();
+
+    cout << "\n5a. Browser закрывается. Отправка сигнала завершения всем загрузкам..." << endl;
+
     if (!SetEvent(hEvent)) {
-        cerr << "Error setting BrowserClosingEvent: " << GetLastError() << endl;
+        cerr << "Ошибка установки BrowserClosingEvent: " << GetLastError() << endl;
     }
     else {
-        cout << "Termination signal **SENT**." << endl;
+        cout << "Сигнал завершения **ОТПРАВЛЕН**" << endl;
     }
 
-    // 6. Дождаться завершения всех Downloader'ов
-    cout << "6. Waiting for all Downloader processes to terminate..." << endl;
+    cout << "6. Ожидание завершения всех процессов Downloader (" << downloader_handles.size() << " процессов)..." << endl;
+
     if (!downloader_handles.empty()) {
-        WaitForMultipleObjects(
-            downloader_handles.size(),  // Количество дескрипторов
-            downloader_handles.data(),  // Массив дескрипторов
-            TRUE,                       // Ждать ВСЕХ (Wait All)
-            INFINITE                    // Ждать бесконечно
+        DWORD waitResult = WaitForMultipleObjects(
+            static_cast<DWORD>(downloader_handles.size()),
+            downloader_handles.data(),
+            TRUE,
+            10000
         );
+
+        if (waitResult == WAIT_TIMEOUT) {
+            cout << "Таймаут! Не все процессы завершились за отведенное время." << endl;
+        }
+        else if (waitResult == WAIT_FAILED) {
+            cerr << "Ошибка WaitForMultipleObjects: " << GetLastError() << endl;
+        }
+        else {
+            cout << "Все процессы Downloader завершены" << endl;
+        }
+    }
+    else {
+        cout << "Нет запущенных процессов Downloader" << endl;
     }
 
-    cout << "All Downloader processes terminated." << endl;
-
-    // 7. Корректное закрытие дескрипторов
     for (HANDLE h : downloader_handles) {
-        CloseHandle(h);
+        if (h != NULL) {
+            CloseHandle(h);
+        }
     }
-    CloseHandle(hSemaphore);
-    CloseHandle(hMutex);
-    CloseHandle(hEvent);
 
-    cout << "\nBrowser.exe finished gracefully." << endl;
+    if (hSemaphore != NULL) CloseHandle(hSemaphore);
+    if (hMutex != NULL) CloseHandle(hMutex);
+    if (hEvent != NULL) CloseHandle(hEvent);
+
+    cout << "\nBrowser.exe корректно завершил работу." << endl;
+    cout << "Нажмите любую клавишу для выхода...";
+    cin.get();
+
     return 0;
 }
